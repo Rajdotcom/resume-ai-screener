@@ -8,7 +8,7 @@ import { analyzeResumeWithAI } from './utils/aiEngine.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs'; // Built-in Node tool to inspect your hard drive
+import fs from 'fs'; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +58,7 @@ app.get('/', (req, res) => {
 app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+    
     const jobDescription = req.body.jobDescription || "Standard criteria.";
     const extractedText = await extractTextFromFile(req.file.path);
     const aiAnalysis = await analyzeResumeWithAI(extractedText, jobDescription);
@@ -79,7 +80,15 @@ app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
     });
 
     const savedProfile = await candidateDocument.save();
-    res.status(200).json({ success: true, profileId: savedProfile._id });
+
+    // 🔥 FIX: Returning the AI results so your React frontend doesn't render a blank column
+    res.status(200).json({ 
+      success: true, 
+      profileId: savedProfile._id,
+      analysis: savedProfile.aiEvaluation, 
+      aiAnalysis: aiAnalysis 
+    });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
