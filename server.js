@@ -18,11 +18,10 @@ console.log("==================================================");
 console.log("🚨 CORE FILE SYSTEM DIAGNOSTICS 🚨");
 console.log("📁 Looking for .env at:", envPath);
 
-// Check if the file physically exists right now
+// Verify physical existence of local variables
 if (fs.existsSync(envPath)) {
   console.log("✅ FILE STATUS: Physical .env file found!");
   
-  // Read the raw text inside it without exposing your whole password
   const rawContent = fs.readFileSync(envPath, 'utf8');
   if (rawContent.includes('MONGODB_URI')) {
     console.log("✅ CONTENT STATUS: 'MONGODB_URI' key exists inside the file.");
@@ -33,7 +32,7 @@ if (fs.existsSync(envPath)) {
   console.log("❌ FILE STATUS: Zero file found. Node cannot see a .env file here at all.");
 }
 
-// Force load the path
+// Force load the configuration path
 dotenv.config({ path: envPath });
 console.log("🔌 VALUE EVALUATED BY MONGOOSE:", process.env.MONGODB_URI ? "Loaded String Successfully!" : "Still Undefined");
 console.log("==================================================");
@@ -42,7 +41,7 @@ console.log("==================================================");
 import connectDB from './config/db.js'; 
 import CandidateProfile from './models/CandidateProfile.js'; 
 
-// Initialize connection
+// Initialize database connection
 connectDB();
 
 const app = express();
@@ -51,10 +50,12 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Base health check endpoint
 app.get('/', (req, res) => {
   res.status(200).json({ message: "AI Resume Screener API is running smoothly!" });
 });
 
+// Primary parsing and processing endpoint
 app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
@@ -81,12 +82,22 @@ app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
 
     const savedProfile = await candidateDocument.save();
 
-    // 🔥 FIX: Returning the AI results so your React frontend doesn't render a blank column
+    // 🚀 BULLETPROOF DUAL-SHAPE RESPONSE
+    // This sends the data in both flat and nested configurations. 
+    // It guarantees that React will find the arrays it needs for .map()
     res.status(200).json({ 
       success: true, 
       profileId: savedProfile._id,
       analysis: savedProfile.aiEvaluation, 
-      aiAnalysis: aiAnalysis 
+      aiAnalysis: aiAnalysis,
+      
+      // Flattened properties fallback to safely satisfy frontend mapping loops
+      suitabilityScore: savedProfile.aiEvaluation.suitabilityScore,
+      executiveSummary: savedProfile.aiEvaluation.executiveSummary,
+      technicalStrengths: savedProfile.aiEvaluation.technicalStrengths || [],
+      operationalWeaknesses: savedProfile.aiEvaluation.operationalWeaknesses || [],
+      missingSkillsGaps: savedProfile.aiEvaluation.missingSkillsGaps || [],
+      generatedBlueprint: savedProfile.aiEvaluation.generatedBlueprint || []
     });
 
   } catch (error) {
