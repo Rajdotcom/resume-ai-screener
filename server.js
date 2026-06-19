@@ -18,10 +18,8 @@ console.log("==================================================");
 console.log("🚨 CORE FILE SYSTEM DIAGNOSTICS 🚨");
 console.log("📁 Looking for .env at:", envPath);
 
-// Verify physical existence of local variables
 if (fs.existsSync(envPath)) {
   console.log("✅ FILE STATUS: Physical .env file found!");
-  
   const rawContent = fs.readFileSync(envPath, 'utf8');
   if (rawContent.includes('MONGODB_URI')) {
     console.log("✅ CONTENT STATUS: 'MONGODB_URI' key exists inside the file.");
@@ -32,7 +30,6 @@ if (fs.existsSync(envPath)) {
   console.log("❌ FILE STATUS: Zero file found. Node cannot see a .env file here at all.");
 }
 
-// Force load the configuration path
 dotenv.config({ path: envPath });
 console.log("🔌 VALUE EVALUATED BY MONGOOSE:", process.env.MONGODB_URI ? "Loaded String Successfully!" : "Still Undefined");
 console.log("==================================================");
@@ -41,7 +38,6 @@ console.log("==================================================");
 import connectDB from './config/db.js'; 
 import CandidateProfile from './models/CandidateProfile.js'; 
 
-// Initialize database connection
 connectDB();
 
 const app = express();
@@ -50,12 +46,10 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Base health check endpoint
 app.get('/', (req, res) => {
   res.status(200).json({ message: "AI Resume Screener API is running smoothly!" });
 });
 
-// Primary parsing and processing endpoint
 app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded." });
@@ -64,34 +58,36 @@ app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
     const extractedText = await extractTextFromFile(req.file.path);
     const aiAnalysis = await analyzeResumeWithAI(extractedText, jobDescription);
 
+    // 🔍 DEBUG LOG: Look at your Render web service logs to see the exact shape Gemini returns!
+    console.log("🤖 RAW AI ENGINE OUTPUT OBJECT:", JSON.stringify(aiAnalysis, null, 2));
+
+    // 🚀 MULTI-KEY FALLBACK MAPPING
+    // This checks both custom backend schemas and default frontend naming metrics
     const candidateDocument = new CandidateProfile({
-      candidateName: aiAnalysis.extractedCandidateName || "Unidentified",
-      extractedEmail: aiAnalysis.extractedCandidateEmail || null,
+      candidateName: aiAnalysis.extractedCandidateName || aiAnalysis.candidateName || aiAnalysis.name || "Unidentified",
+      extractedEmail: aiAnalysis.extractedCandidateEmail || aiAnalysis.email || null,
       systemFilename: req.file.filename,
-      targetJobTitle: aiAnalysis.evaluatedTargetRole || "Not Specified",
+      targetJobTitle: aiAnalysis.evaluatedTargetRole || aiAnalysis.targetJobTitle || aiAnalysis.jobTitle || "Not Specified",
       rawTextPayload: extractedText,
       aiEvaluation: {
-        suitabilityScore: aiAnalysis.suitabilityScore || 0,
-        executiveSummary: aiAnalysis.executiveSummary || "None",
-        technicalStrengths: aiAnalysis.technicalStrengths || [],
-        operationalWeaknesses: aiAnalysis.operationalWeaknesses || [],
-        missingSkillsGaps: aiAnalysis.missingSkillsGaps || [],
-        generatedBlueprint: aiAnalysis.generatedBlueprint || []
+        suitabilityScore: aiAnalysis.suitabilityScore || aiAnalysis.matchPercentage || aiAnalysis.score || 0,
+        executiveSummary: aiAnalysis.executiveSummary || aiAnalysis.summary || "None",
+        technicalStrengths: aiAnalysis.technicalStrengths || aiAnalysis.strengths || [],
+        operationalWeaknesses: aiAnalysis.operationalWeaknesses || aiAnalysis.weaknesses || [],
+        missingSkillsGaps: aiAnalysis.missingSkillsGaps || aiAnalysis.missingSkills || [],
+        generatedBlueprint: aiAnalysis.generatedBlueprint || aiAnalysis.blueprint || []
       }
     });
 
     const savedProfile = await candidateDocument.save();
 
-    // 🚀 BULLETPROOF DUAL-SHAPE RESPONSE
-    // This sends the data in both flat and nested configurations. 
-    // It guarantees that React will find the arrays it needs for .map()
     res.status(200).json({ 
       success: true, 
       profileId: savedProfile._id,
       analysis: savedProfile.aiEvaluation, 
       aiAnalysis: aiAnalysis,
       
-      // Flattened properties fallback to safely satisfy frontend mapping loops
+      // Secondary fallback spread to ensure the React frontend hooks match instantly
       suitabilityScore: savedProfile.aiEvaluation.suitabilityScore,
       executiveSummary: savedProfile.aiEvaluation.executiveSummary,
       technicalStrengths: savedProfile.aiEvaluation.technicalStrengths || [],
@@ -101,6 +97,7 @@ app.post('/api/upload-resume', upload.single('resume'), async (req, res) => {
     });
 
   } catch (error) {
+    console.error("❌ BACKEND SERVER ERROR:", error);
     res.status(500).json({ error: error.message });
   }
 });
